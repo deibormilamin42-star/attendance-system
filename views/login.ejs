@@ -1,0 +1,13 @@
+<%- include('partials/head', { title: title }) %>
+<main class="auth">
+  <form class="card login" method="POST" action="/login">
+    <button type="button" id="themeToggle" class="icon-btn" aria-label="Toggle theme"></button>
+    <h1>Welcome back</h1>
+    <p class="muted">Sign in to mark attendance</p>
+    <% if (error) { %><div class="alert"><%= error %></div><% } %>
+    <label>Email<input type="email" name="email" required autofocus></label>
+    <label>Password<input type="password" name="password" required></label>
+    <button class="btn" type="submit">Sign in</button>
+  </form>
+</main>
+<%- include('partials/foot') %>

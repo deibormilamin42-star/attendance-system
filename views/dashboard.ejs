@@ -1,0 +1,13 @@
+<%- include('partials/head', { title: title }) %>
+<header class="nav">
+  <strong>Attendly</strong>
+  <div class="nav-right">
+    <button type="button" id="themeToggle" class="icon-btn" aria-label="Toggle theme"></button>
+    <form method="POST" action="/logout"><button class="btn ghost" type="submit">Logout</button></form>
+  </div>
+</header>
+<main class="container">
+  <h1>Hello, <%= user.name %></h1>
+  <p class="muted">You are signed in as <%= user.role %>. Dashboard cards come next.</p>
+</main>
+<%- include('partials/foot') %>
