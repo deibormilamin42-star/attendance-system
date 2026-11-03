@@ -3,17 +3,7 @@
   <div class="page-head">
     <h1>Marks</h1>
     <% if (user.role === 'admin') { %>
-    <form class="card filters" method="POST" action="/marks/calculate" style="margin-bottom:1rem">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <label>Class
-        <select name="class_id">
-          <option value="">All students</option>
-          <% classes.forEach(function (c) { %><option value="<%= c.id %>" <%= classId === c.id ? 'selected' : '' %>><%= c.name %></option><% }) %>
-        </select>
-      </label>
-      <label>As of date<input type="date" name="as_of" value="<%= today %>"></label>
-      <button class="btn" type="submit">Calculate marks</button>
-    </form>
+    <p>Marks are automatically derived from attendance percentage up to the calculated-on date (marks = attendance %).</p>
     <% } %>
   </div>
 

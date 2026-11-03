@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool = require('../db');
 const { today, isDate, prettyDate } = require('../lib/dates');
 const { toId } = require('../lib/util');
+const { requireTeacher } = require('../middleware/auth');
 
 const VALID = new Set(['present', 'absent', 'late']);
 
@@ -10,7 +11,7 @@ function pickDate(v) {
   return isDate(v) && v <= t ? v : t; // never allow future dates
 }
 
-router.get('/', async (req, res) => {
+router.get('/', requireTeacher, async (req, res) => {
   const classes = (await pool.query('SELECT id, name FROM classes ORDER BY name')).rows;
   const classId = toId(req.query.class_id);
   const date = pickDate(req.query.date);
@@ -31,7 +32,7 @@ router.get('/', async (req, res) => {
   });
 });
 
-router.post('/', async (req, res) => {
+router.post('/', requireTeacher, async (req, res) => {
   const classId = toId(req.body.class_id);
   const date = pickDate(req.body.date);
   if (!classId) {

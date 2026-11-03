@@ -25,46 +25,6 @@ router.get('/', requireAuth, async (req, res) => {
   });
 });
 
-router.post('/calculate', requireAuth, async (req, res) => {
-  const classId = toId(req.body.class_id);
-  const targetDate = req.body.as_of ? req.body.as_of : new Date().toISOString().slice(0, 10);
-
-  if (classId) {
-    await pool.query(
-      `INSERT INTO marks (student_id, attendance_pct, marks, calculated_on)
-       SELECT a.student_id,
-              ROUND(100.0 * COUNT(*) FILTER (WHERE a.status IN ('present','late')) / NULLIF(COUNT(*), 0), 1),
-              ROUND(100.0 * COUNT(*) FILTER (WHERE a.status IN ('present','late')) / NULLIF(COUNT(*), 0), 1),
-              $3::date
-       FROM attendance a
-       JOIN students s ON s.id = a.student_id
-       WHERE s.class_id = $1
-         AND a.date <= $3::date
-       GROUP BY a.student_id
-       ON CONFLICT (student_id, calculated_on) DO UPDATE SET
-         attendance_pct = EXCLUDED.attendance_pct,
-         marks = EXCLUDED.marks`,
-      [classId, classId, targetDate]);
-  } else {
-    await pool.query(
-      `INSERT INTO marks (student_id, attendance_pct, marks, calculated_on)
-       SELECT a.student_id,
-              ROUND(100.0 * COUNT(*) FILTER (WHERE a.status IN ('present','late')) / NULLIF(COUNT(*), 0), 1),
-              ROUND(100.0 * COUNT(*) FILTER (WHERE a.status IN ('present','late')) / NULLIF(COUNT(*), 0), 1),
-              $2::date
-       FROM attendance a
-       WHERE a.date <= $2::date
-       GROUP BY a.student_id
-       ON CONFLICT (student_id, calculated_on) DO UPDATE SET
-         attendance_pct = EXCLUDED.attendance_pct,
-         marks = EXCLUDED.marks`,
-      [targetDate]);
-  }
-
-  req.flash('ok', 'Marks calculated for all students (attendance % = marks).');
-  res.redirect('/marks' + (classId ? '?class_id=' + classId : ''));
-});
-
 router.get('/:id', requireAuth, async (req, res) => {
   const id = req.params.id;
   const st = await pool.query(

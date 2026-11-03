@@ -31,7 +31,9 @@
                 </td>
                 <td class="num"><a href="/students?class_id=<%= c.id %>"><%= c.students %></a></td>
                 <td class="actions">
-                  <a class="btn ghost sm" href="/attendance?class_id=<%= c.id %>">Mark</a>
+                  <% if (user.role === 'teacher') { %>
+                    <a class="btn ghost sm" href="/attendance?class_id=<%= c.id %>">Mark attendance</a>
+                  <% } %>
                   <% if (user.role === 'admin') { %>
                     <form class="inline" method="POST" action="/classes/<%= c.id %>/delete" data-confirm="Delete this class? Its students are kept but unassigned.">
                       <input type="hidden" name="_csrf" value="<%= csrfToken %>">

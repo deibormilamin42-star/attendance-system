@@ -5,7 +5,6 @@
       <h1>Hello, <%= user.name %></h1>
       <p class="muted"><%= weekday(today, 'long') %>, <%= pretty(today) %></p>
     </div>
-    <a class="btn" href="/attendance">Mark attendance</a>
   </div>
 
   <section class="grid stats">
@@ -69,7 +68,8 @@
                 <td class="num"><%= c.absent %></td>
                 <td>
                   <% if (c.marked) { %><span class="chip present">Marked</span>
-                  <% } else { %><a class="chip late" href="/attendance?class_id=<%= c.id %>">Not marked yet</a><% } %>
+                  <% } else if (user.role === 'teacher') { %><a class="chip late" href="/attendance?class_id=<%= c.id %>">Not marked yet</a>
+                  <% } else { %><span class="chip late">Not marked yet</span><% } %>
                 </td>
               </tr>
             <% }) %>

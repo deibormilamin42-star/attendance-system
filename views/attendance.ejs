@@ -13,7 +13,11 @@
     <button class="btn" type="submit">Load</button>
   </form>
 
-  <% if (user.role !== 'student') { %>
+  <% if (!cls) { %>
+    <p>Choose a class and date above to load the student list.</p>
+  <% } else if (user.role !== 'teacher') { %>
+    <p>You do not have permission to mark attendance. Only teachers can mark attendance.</p>
+  <% } else { %>
     <form method="POST" action="/attendance" id="attForm">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="class_id" value="<%= cls.id %>">
@@ -52,8 +56,6 @@
 
       <div class="sticky-save"><button class="btn lg" type="submit">Save attendance</button></div>
     </form>
-  <% } else { %>
-    <p>No classes available or you do not have permission to mark attendance.</p>
   <% } %>
 </main>
 <%- include('partials/foot') %>
