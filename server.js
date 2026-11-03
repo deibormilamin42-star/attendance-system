@@ -12,6 +12,7 @@ const { LOW, pctClass } = require('./lib/util');
 
 if (!process.env.DATABASE_URL || !process.env.SESSION_SECRET) {
   console.error('Missing DATABASE_URL or SESSION_SECRET environment variable.');
+  console.error('Create a .env file in the project root containing both values (see README.md).');
   process.exit(1);
 }
 
@@ -73,7 +74,14 @@ app.use('/account', requireAuth, require('./routes/account'));
 app.use('/courses', requireAuth, require('./routes/courses'));
 app.use('/marks', requireAuth, require('./routes/marks'));
 app.use('/parents', requireAuth, require('./routes/parents'));
+// Protect /student routes: only students may access them
 app.use('/student', require('./routes/student-auth'));
+app.use('/student', (req, res, next) => {
+  if (req.session.user && req.session.user.role === 'student') {
+    return next();
+  }
+  res.redirect('/dashboard');
+});
 
 app.use((req, res) =>
   res.status(404).render('error', { title: 'Not found', code: 404, message: 'That page does not exist.' }));

@@ -13,16 +13,7 @@
     <button class="btn" type="submit">Load</button>
   </form>
 
-  <% if (!classes.length) { %>
-    <div class="card empty"><p>There are no classes yet.</p><% if (user.role === 'admin') { %><a class="btn" href="/classes">Add a class</a><% } %></div>
-  <% } else if (!cls) { %>
-    <div class="card empty"><p class="muted">Choose a class and date, then press Load.</p></div>
-  <% } else if (!students.length) { %>
-    <div class="card empty">
-      <p><strong><%= cls.name %></strong> has no students yet.</p>
-      <% if (user.role === 'admin') { %><a class="btn" href="/students/new?class_id=<%= cls.id %>">Add students</a><% } %>
-    </div>
-  <% } else { %>
+  <% if (user.role === 'admin') { %>
     <form method="POST" action="/attendance" id="attForm">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="class_id" value="<%= cls.id %>">
@@ -61,6 +52,8 @@
 
       <div class="sticky-save"><button class="btn lg" type="submit">Save attendance</button></div>
     </form>
+  <% } else { %>
+    <p>No classes available or you do not have permission to mark attendance.</p>
   <% } %>
 </main>
 <%- include('partials/foot') %>

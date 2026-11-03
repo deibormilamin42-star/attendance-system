@@ -33,7 +33,7 @@
                 <td><%= r.roll_no %></td>
                 <td><a href="/students/<%= r.id %>"><%= r.name %></a></td>
                 <td><%= r.class_name || '–' %></td>
-                <td><%= r.parent_name || '<span class="muted">Not set</span>' %></td>
+                <td><% if (r.parent_name) { %><%= r.parent_name %><% } else { %><span class="muted">Not set</span><% } %></td>
                 <td>
                   <% if (r.email) { %><span class="chip"><%= r.email %></span><% } %>
                   <% if (r.phone) { %><span class="chip late"><%= r.phone %></span><% } %>
@@ -41,11 +41,7 @@
                 </td>
                 <td class="actions">
                   <% if (user.role === 'admin') { %>
-                    <a class="btn ghost sm" href="/parents/<%= r.id %>/edit">Edit parent</a>
-                    <form method="POST" action="/parents/<%= r.id %>/message" class="inline" style="display:inline">
-                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                      <button class="btn sm" type="submit">Send message</button>
-                    </form>
+                    <a class="btn ghost sm" href="/parents/<%= r.id %>/edit">Edit parent &amp; send message</a>
                     <% if (r.pending_count > 0) { %><span class="chip bad"><%= r.pending_count %> pending</span><% } %>
                   <% } %>
                 </td>

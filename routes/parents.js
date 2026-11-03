@@ -3,6 +3,9 @@ const pool = require('../db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { toId, notFound, clean } = require('../lib/util');
 
+// Only numeric ids match these routes, so /parents/notify falls through to its own handler.
+router.param('id', (req, res, next, v) => (/^\d{1,9}$/.test(v) ? next() : next('route')));
+
 // List students with parent info + message log
 router.get('/', requireAuth, async (req, res) => {
   const classId = toId(req.query.class_id);
