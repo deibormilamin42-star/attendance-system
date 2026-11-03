@@ -1,0 +1,79 @@
+<%- include('partials/head') %>
+<main class="container">
+  <div class="page-head"><h1>Courses & sections</h1></div>
+
+  <% if (user.role === 'admin') { %>
+  <form class="card form-grid" method="POST" action="/courses">
+    <div>
+      <h2>Add a course</h2>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <% if (error) { %><div class="alert bad" role="alert"><%= error %></div><% } %>
+      <label>Course name<input name="name" value="<%= course.name %>" maxlength="80" required></label>
+      <label>Course code<input name="code" value="<%= course.code %>" maxlength="20" required placeholder="e.g. BCA501"></label>
+      <button class="btn" type="submit">Add course</button>
+    </div>
+    <div>
+      <h2>Add a section</h2>
+      <p class="muted small">Pick a course, then name the section (e.g. A, B, Morning).</p>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>Course
+        <select name="course_id" required>
+          <option value="">Select a course</option>
+          <% courses.forEach(function (c) { %><option value="<%= c.id %>" <%= section.course_id === c.id ? 'selected' : '' %>><%= c.code %> - <%= c.name %></option><% }) %>
+        </select>
+      </label>
+      <label>Section name<input name="name" value="<%= section.name %>" maxlength="40" required placeholder="e.g. A"></label>
+      <button class="btn ghost" type="submit" formaction="/courses/sections">Add section</button>
+    </div>
+  </form>
+  <% } %>
+
+  <section class="card">
+    <% if (!courses.length) { %>
+      <p class="muted">No courses yet.<%= user.role === 'admin' ? ' Add one above.' : ' Ask an administrator to add one.' %></p>
+    <% } else { %>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Course</th><th>Code</th><th class="actions">Sections</th><th class="actions">Actions</th></tr></thead>
+          <tbody>
+            <% let lastCourseId = null; %>
+            <% courses.forEach(function (c) { %>
+              <% if (c.id !== lastCourseId) { %>
+                <% lastCourseId = c.id; %>
+                <tr>
+                  <td><strong><%= c.name %></strong></td>
+                  <td><span class="chip"><%= c.code %></span></td>
+                  <td class="actions">
+                    <a class="btn ghost sm" href="/courses/<%= c.id %>">View (<%= c.section_count %>)</a>
+                  </td>
+                  <td class="actions">
+                    <% if (user.role === 'admin') { %>
+                      <a class="btn ghost sm" href="/courses/<%= c.id %>">Manage</a>
+                    <% } %>
+                  </td>
+                </tr>
+                <% c.sections.forEach(function (s) { %>
+                  <tr class="section-row">
+                    <td></td>
+                    <td></td>
+                    <td class="muted small">Section <%= s.name %></td>
+                    <td class="actions">
+                      <% if (user.role === 'admin') { %>
+                        <form method="POST" action="/courses/sections/<%= s.id %>/delete" data-confirm="Remove section <%= s.name %>? Students will keep their registration but the section will be gone.">
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                          <button class="btn danger sm" type="submit">Delete section</button>
+                        </form>
+                      <% } %>
+                    </td>
+                  </tr>
+                <% }) %>
+              <% } %>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted small">Sections are grouped under their course. Click "Manage" to see all sections of a course.</p>
+    <% } %>
+  </section>
+</main>
+<%- include('partials/foot') %>

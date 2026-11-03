@@ -1,0 +1,61 @@
+<%- include('partials/head') %>
+<main class="container">
+  <div class="page-head">
+    <h1>Parents & messages</h1>
+    <% if (user.role === 'admin') { %>
+      <form method="POST" action="/parents/notify" style="display:inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn">Notify parents (low attendance)</button>
+      </form>
+    <% } %>
+  </div>
+
+  <form class="card filters" method="GET" action="/parents">
+    <label>Class
+      <select name="class_id">
+        <option value="">All classes</option>
+        <% classes.forEach(function (c) { %><option value="<%= c.id %>" <%= classId === c.id ? 'selected' : '' %>><%= c.name %></option><% }) %>
+      </select>
+    </label>
+    <button class="btn" type="submit">Filter</button>
+  </form>
+
+  <section class="card">
+    <% if (!rows.length) { %>
+      <p class="muted">No students found.</p>
+    <% } else { %>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Roll</th><th>Student</th><th>Class</th><th>Parent / guardian</th><th>Contact</th><th class="actions">Actions</th></tr></thead>
+          <tbody>
+            <% rows.forEach(function (r) { %>
+              <tr>
+                <td><%= r.roll_no %></td>
+                <td><a href="/students/<%= r.id %>"><%= r.name %></a></td>
+                <td><%= r.class_name || '–' %></td>
+                <td><%= r.parent_name || '<span class="muted">Not set</span>' %></td>
+                <td>
+                  <% if (r.email) { %><span class="chip"><%= r.email %></span><% } %>
+                  <% if (r.phone) { %><span class="chip late"><%= r.phone %></span><% } %>
+                  <% if (!r.email && !r.phone) { %><span class="muted">No contact</span><% } %>
+                </td>
+                <td class="actions">
+                  <% if (user.role === 'admin') { %>
+                    <a class="btn ghost sm" href="/parents/<%= r.id %>/edit">Edit parent</a>
+                    <form method="POST" action="/parents/<%= r.id %>/message" class="inline" style="display:inline">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <button class="btn sm" type="submit">Send message</button>
+                    </form>
+                    <% if (r.pending_count > 0) { %><span class="chip bad"><%= r.pending_count %> pending</span><% } %>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted small">Use "Notify parents" to automatically send alerts to parents of students whose attendance is below the threshold.</p>
+    <% } %>
+  </section>
+</main>
+<%- include('partials/foot') %>

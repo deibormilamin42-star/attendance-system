@@ -83,12 +83,60 @@ router.get('/:id', async (req, res) => {
 });
 
 router.get('/:id/edit', requireAdmin, async (req, res) => {
-  const [st, classes] = await Promise.all([
+  const [st, classes, courses, registration] = await Promise.all([
     pool.query('SELECT id, roll_no, name, class_id FROM students WHERE id = $1', [req.params.id]),
     getClasses(),
+    pool.query('SELECT id, name, code FROM courses ORDER BY name'),
+    pool.query(
+      `SELECT sec.id AS section_id, sec.course_id
+       FROM student_section ss
+       JOIN sections sec ON sec.id = ss.section_id
+       WHERE ss.student_id = $1`, [req.params.id]),
   ]);
   if (!st.rows[0]) return notFound(res, 'student');
-  res.render('student-form', { title: 'Edit student', active: 'students', isNew: false, error: null, student: st.rows[0], classes: classes.rows });
+  const currentSection = {
+    courseId: registration.rows[0]?.course_id || null,
+    selectedSectionId: registration.rows[0]?.section_id || null,
+    sections: [],
+  };
+  if (currentSection.courseId) {
+    const sections = await pool.query(
+      'SELECT id, name FROM sections WHERE course_id = $1 ORDER BY name',
+      [currentSection.courseId]);
+    currentSection.sections = sections.rows;
+  }
+  res.render('student-form', {
+    title: 'Edit student', active: 'students', isNew: false, error: null,
+    student: st.rows[0], classes: classes.rows, courses: courses.rows, currentSection,
+  });
+});
+
+router.post('/:id/section', requireAdmin, async (req, res) => {
+  const studentId = Number(req.params.id);
+  const courseId = toId(req.body.course_id);
+  const sectionId = toId(req.body.section_id);
+  if (!courseId || !sectionId) {
+    req.flash('bad', 'Please choose a course and section.');
+    return res.redirect('/students/' + studentId + '/edit');
+  }
+  const registration = await pool.query(
+    `INSERT INTO student_section (student_id, section_id)
+     SELECT $1, id FROM sections WHERE id = $2 AND course_id = $3
+     ON CONFLICT (student_id) DO UPDATE SET section_id = EXCLUDED.section_id
+     RETURNING student_id`,
+    [studentId, sectionId, courseId]);
+  if (!registration.rowCount) {
+    req.flash('bad', 'That section does not belong to the selected course.');
+    return res.redirect('/students/' + studentId + '/edit');
+  }
+  req.flash('ok', 'Course and section registered.');
+  res.redirect('/students/' + studentId + '/edit');
+});
+
+router.get('/:id/section/clear', requireAdmin, async (req, res) => {
+  await pool.query('DELETE FROM student_section WHERE student_id = $1', [req.params.id]);
+  req.flash('ok', 'Course and section registration removed.');
+  res.redirect('/students/' + req.params.id + '/edit');
 });
 
 router.post('/:id', requireAdmin, async (req, res) => {

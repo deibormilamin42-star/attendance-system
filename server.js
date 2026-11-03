@@ -70,6 +70,10 @@ app.use('/attendance', requireAuth, require('./routes/attendance'));
 app.use('/reports', requireAuth, require('./routes/reports'));
 app.use('/users', requireAuth, require('./routes/users'));
 app.use('/account', requireAuth, require('./routes/account'));
+app.use('/courses', requireAuth, require('./routes/courses'));
+app.use('/marks', requireAuth, require('./routes/marks'));
+app.use('/parents', requireAuth, require('./routes/parents'));
+app.use('/student', require('./routes/student-auth'));
 
 app.use((req, res) =>
   res.status(404).render('error', { title: 'Not found', code: 404, message: 'That page does not exist.' }));

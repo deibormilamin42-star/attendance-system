@@ -17,5 +17,34 @@
       <a class="btn ghost" href="/students">Cancel</a>
     </div>
   </form>
+  <% if (!isNew) { %>
+  <section class="card" style="margin-top:1rem">
+    <h2>Register to a course & section</h2>
+    <p class="muted small">Assign this student to a course and section. This appears on their student dashboard.</p>
+    <form class="form" method="POST" action="/students/<%= student.id %>/section">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>Course
+        <select name="course_id" required>
+          <option value="">Select a course</option>
+          <% courses.forEach(function (c) { %><option value="<%= c.id %>" <%= currentSection.courseId === c.id ? 'selected' : '' %>><%= c.code %> - <%= c.name %></option><% }) %>
+        </select>
+      </label>
+      <label>Section
+        <select name="section_id" required>
+          <option value="">Select a section</option>
+          <% currentSection.sections.forEach(function (s) { %>
+            <option value="<%= s.id %>" <%= currentSection.selectedSectionId === s.id ? 'selected' : '' %>><%= s.name %></option>
+          <% }) %>
+        </select>
+      </label>
+      <div class="form-actions">
+        <button class="btn ghost" type="submit">Save registration</button>
+        <% if (currentSection.selectedSectionId) { %>
+          <a class="btn danger ghost" href="/students/<%= student.id %>/section/clear" data-confirm="Remove this student's course & section registration?">Remove</a>
+        <% } %>
+      </div>
+    </form>
+  </section>
+  <% } %>
 </main>
 <%- include('partials/foot') %>

@@ -37,6 +37,7 @@
                 <td class="actions">
                   <% if (user.role === 'admin') { %>
                     <a class="btn ghost sm" href="/students/<%= s.id %>/edit">Edit</a>
+                    <a class="btn ghost sm" href="/parents/<%= s.id %>/edit">Parent</a>
                     <form class="inline" method="POST" action="/students/<%= s.id %>/delete" data-confirm="Delete this student and all of their attendance records?">
                       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                       <button class="btn danger sm" type="submit">Delete</button>

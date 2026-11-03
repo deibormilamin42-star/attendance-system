@@ -1,0 +1,44 @@
+<%- include('partials/head') %>
+<main class="container">
+  <div class="page-head">
+    <div>
+      <h1><%= student.name %></h1>
+      <p class="muted">Roll <%= student.roll_no %></p>
+    </div>
+    <div class="row-gap">
+      <a class="btn ghost" href="/students/<%= student.id %>">Attendance</a>
+      <a class="btn ghost" href="/marks?student_id=<%= student.id %>">Marks history</a>
+    </div>
+  </div>
+
+  <% if (current) { %>
+  <section class="grid stats">
+    <div class="card stat ok"><span class="muted">Attendance %</span><strong><%= current.attendance_pct %>%</strong></div>
+    <div class="card stat <%= pctClass(Number(current.marks)) %>"><span class="muted">Marks (auto)</span><strong><%= current.marks %>/100</strong></div>
+    <div class="card stat"><span class="muted">Calculated on</span><strong><%= pretty(current.calculated_on) %></strong></div>
+  </section>
+  <% } else { %>
+  <div class="card empty"><p class="muted">No marks calculated yet. Admins can calculate marks from the Marks page.</p></div>
+  <% } %>
+
+  <% if (history.length > 1) { %>
+  <section class="card">
+    <h2>Marks history</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Calculated on</th><th class="num">Attendance %</th><th class="num">Marks</th></tr></thead>
+        <tbody>
+          <% history.forEach(function (m) { %>
+            <tr>
+              <td><%= pretty(m.calculated_on) %></td>
+              <td class="num"><%= m.attendance_pct %>%</td>
+              <td class="num"><span class="chip <%= m.marks >= LOW ? 'present' : 'absent' %>"><%= m.marks %>/100</span></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <% } %>
+</main>
+<%- include('partials/foot') %>
