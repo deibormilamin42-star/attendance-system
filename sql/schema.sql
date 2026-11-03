@@ -14,8 +14,11 @@ CREATE TABLE IF NOT EXISTS students (
   id SERIAL PRIMARY KEY,
   roll_no TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
-  class_id INT REFERENCES classes(id) ON DELETE SET NULL
+  class_id INT REFERENCES classes(id) ON DELETE SET NULL,
+  user_id INT UNIQUE REFERENCES users(id) ON DELETE SET NULL
 );
+-- Added later: links an admin-registered student to the login they create themselves.
+ALTER TABLE students ADD COLUMN IF NOT EXISTS user_id INT UNIQUE REFERENCES users(id) ON DELETE SET NULL;
 CREATE TABLE IF NOT EXISTS courses (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
