@@ -2,10 +2,15 @@ const router = require('express').Router();
 const pool = require('../db');
 const { today, addDays, weekday } = require('../lib/dates');
 const { LOW } = require('../lib/util');
+const { requireAuth } = require('../middleware/auth');
 
 const ATTENDED = `status IN ('present','late')`;
 
-router.get('/', async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
+  // Redirect students to their own dashboard; teachers and admins stay on /dashboard
+  if (req.session.user.role === 'student') {
+    return res.redirect('/student/dashboard');
+  }
   const t = today();
   const from = addDays(t, -6);
 

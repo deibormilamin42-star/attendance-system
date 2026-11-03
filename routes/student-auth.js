@@ -83,4 +83,66 @@ router.get('/dashboard', requireAuth, async (req, res) => {
   });
 });
 
+// --- New: Student registration ---
+router.get('/register', async (req, res) => {
+  if (req.session.user) return res.redirect('/student/dashboard');
+  const { rows } = await pool.query('SELECT id, name FROM classes ORDER BY name');
+  res.render('student-register', { title: 'Student Registration', error: null, classes: rows });
+});
+
+router.post('/register', async (req, res) => {
+  const { name, email, password, roll_no, class_id } = req.body;
+  const email_lc = String(email || '').trim().toLowerCase();
+  const pwd = String(password || '');
+
+  // Basic validation
+  if (!name || !email_lc || !pwd || !roll_no || !class_id) {
+    return res.status(400).render('student-register', { title: 'Student Registration', error: 'All fields are required.', classes: [] });
+  }
+  if (pwd.length < 8) {
+    return res.status(400).render('student-register', { title: 'Student Registration', error: 'Password must be at least 8 characters.', classes: await pool.query('SELECT id, name FROM classes ORDER BY name') });
+  }
+
+  // Check if email already exists
+  const { rows: existing } = await pool.query(
+    'SELECT id FROM users WHERE lower(email) = $1', [email_lc]);
+  if (existing.length) {
+    return res.status(400).render('student-register', { title: 'Student Registration', error: 'A user with that email already exists.', classes: await pool.query('SELECT id, name FROM classes ORDER BY name') });
+  }
+
+  // Check if roll_no exists for the selected class
+  const { rows: student } = await pool.query(
+    'SELECT id, name FROM students WHERE roll_no = $1 AND class_id = $2', [roll_no, class_id]);
+  if (!student.length) {
+    return res.status(400).render('student-register', { title: 'Student Registration', error: 'Invalid roll number for the selected class. Please enter a roll number that the admin has registered.', classes: await pool.query('SELECT id, name FROM classes ORDER BY name') });
+  }
+
+  // Check if roll_no is already taken by another student (unique constraint)
+  const { rows: taken } = await pool.query(
+    'SELECT id FROM students WHERE roll_no = $1 AND id != $2', [roll_no, student[0].id]);
+  if (taken.length) {
+    return res.status(400).render('student-register', { title: 'Student Registration', error: 'This roll number is already taken. Please enter a different roll number.', classes: await pool.query('SELECT id, name FROM classes ORDER BY name') });
+  }
+
+  // Hash password
+  const password_hash = await bcrypt.hash(pwd, 10);
+
+  // Insert into users first, then students (using the generated id)
+  const { rows: user } = await pool.query(
+    `INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, 'student') RETURNING id`,
+    [name, email_lc, password_hash]
+  );
+  const student_id = user.rows[0].id;
+
+  await pool.query(
+    `INSERT INTO students (roll_no, name, class_id) VALUES ($1, $2, $3)`,
+    [roll_no, name, class_id]
+  );
+
+  // Log the student in
+  await new Promise((resolve, reject) => req.session.regenerate((e) => (e ? reject(e) : resolve())));
+  req.session.user = { id: student_id, name, role: 'student', email: email_lc };
+  res.redirect('/student/dashboard');
+});
+
 module.exports = router;
