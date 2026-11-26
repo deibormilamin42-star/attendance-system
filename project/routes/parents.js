@@ -157,7 +157,12 @@ router.post('/:id/message', requireAdmin, async (req, res) => {
     attempts: 0,
   };
 
-  const delivery = await deliver(row);
+  let delivery;
+  try {
+    delivery = await deliver(row);
+  } catch (e) {
+    delivery = { ok: false, permanent: true, error: e.message };
+  }
   await record(row, delivery);
 
   req.flash('ok', delivery.ok
@@ -209,7 +214,12 @@ router.post('/notify', requireAdmin, async (req, res) => {
       attempts: 0,
     };
 
-    const delivery = await deliver(row);
+    let delivery;
+    try {
+      delivery = await deliver(row);
+    } catch (e) {
+      delivery = { ok: false, permanent: true, error: e.message };
+    }
     await record(row, delivery);
     queued++;
     if (delivery.ok) sent++; else failed++;
