@@ -53,11 +53,8 @@
         </table>
       </div>
       <p class="muted small">Use "Notify parents" to automatically queue alerts to parents of students whose attendance is below the threshold. Queued messages are delivered by the background worker (<code>npm run worker</code>), which sends each channel and marks the message sent or failed.</p>
-      <% if (!providers.email || !providers.sms) { %>
-        <p class="muted small">Providers configured: <%= providers.email ? 'e-mail' : '' %><%= providers.email && providers.sms ? ' and ' : '' %><%= providers.sms ? 'SMS' : '' %>.
-          <% if (!providers.email) { %>Set RESEND_API_KEY and MAIL_FROM to deliver e-mail.<% } %>
-          <% if (!providers.sms) { %>Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM to deliver SMS.<% } %>
-          Messages that need a missing channel stay pending.</p>
+      <% if (!providers.email) { %>
+        <p class="muted small">E-mail not configured yet. Set BREVO_API_KEY and MAIL_FROM to deliver messages; queued messages stay pending until then.</p>
       <% } %>
     <% } %>
   </section>

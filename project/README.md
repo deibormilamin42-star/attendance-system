@@ -14,11 +14,8 @@ Node.js + Express + EJS, PostgreSQL on Neon, hosted on Render.
 | NODE_ENV | on Render | production |
 | APP_TZ | optional | default Asia/Kolkata (decides what "today" means) |
 | LOW_ATTENDANCE | optional | default 75 (% threshold for warnings) |
-| RESEND_API_KEY | for e-mail | API key from resend.com; without it e-mail messages stay pending |
+| BREVO_API_KEY | for e-mail | API key from brevo.com; without it e-mail messages stay pending |
 | MAIL_FROM | for e-mail | verified sender, e.g. `Attendly <alerts@yourdomain>` |
-| TWILIO_ACCOUNT_SID | for SMS | Twilio account SID |
-| TWILIO_AUTH_TOKEN | for SMS | Twilio auth token |
-| TWILIO_FROM | for SMS | Twilio sender number in E.164, e.g. `+12025550123` |
 | MAIL_INTERVAL_MS | optional | worker poll interval, default 60000 |
 | MAIL_BATCH | optional | messages per pass, default 20 |
 | MAIL_MAX_ATTEMPTS | optional | attempts before a message is marked failed, default 5 |
@@ -46,18 +43,18 @@ Transient errors (timeouts, 429, 5xx) leave the message pending with an exponent
 
 Admins can see what happened on the **Message log** page (`/parents/messages`, linked from Parents & messages): filter by failed, pending, sent or all, with each student, channel, attempt count, per-channel delivery time, the next retry due, and the provider error for anything that failed.
 
-E-mail goes through Resend (`lib/email.js`, `RESEND_API_KEY` + `MAIL_FROM`) and SMS through Twilio (`lib/sms.js`, `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` + `TWILIO_FROM`). Store parent phone numbers in E.164 form (`+919876543210`); the adapter strips spaces and dashes before sending.
+E-mail goes through Brevo (`lib/email.js`, `BREVO_API_KEY` + `MAIL_FROM`). Store parent phone numbers in E.164 form (`+919876543210`) for the contact display; SMS delivery is no longer offered from the admin page.
 
-Each channel is delivered and confirmed separately: `email_sent_at` and `sms_sent_at` are stamped as soon as that channel is accepted, so a retry after a partial failure never sends the same message twice. A message is marked "sent" only when every channel it asks for has been accepted; if one channel fails permanently, the message is marked "failed" and `last_error` says which channel failed and which ones were delivered.
+`email_sent_at` is stamped as soon as e-mail is accepted, so a retry never sends the same message twice. A message is marked "sent" when e-mail is accepted; if e-mail fails permanently, the message is marked "failed" and `last_error` says why.
 
-The worker only claims messages whose channels are all configured ("both" needs both providers), so with one provider missing those messages stay pending instead of failing. With neither provider configured the worker exits its pass without touching any row.
+The worker only claims pending e-mail messages when BREVO_API_KEY and MAIL_FROM are set; otherwise messages stay pending.
 
 ## Tests
     npm test
 
-Uses Node's built-in test runner, so there is nothing to install. The suite covers the date, identifier, registration-code and rate-limit helpers; the e-mail and SMS adapters against a local stub HTTP server; the worker's channel selection, partial-failure handling and delivery bookkeeping (with a stubbed `pool.query`); and HTTP smoke tests that start the real server and check the health endpoint, login page and CSRF token, the auth redirect, a rejected POST, the 404 page, security headers and a static asset.
+Uses Node's built-in test runner, so there is nothing to install. The suite covers the date, identifier, registration-code and rate-limit helpers; the e-mail adapter against a local stub HTTP server; the worker's delivery handling and bookkeeping (with a stubbed `pool.query`); and HTTP smoke tests that start the real server and check the health endpoint, login page and CSRF token, the auth redirect, a rejected POST, the 404 page, security headers and a static asset.
 
-Not covered: anything that needs PostgreSQL (attendance saving, report totals, CSV export, the schema) and real delivery through Resend or Twilio.
+Not covered: anything that needs PostgreSQL (attendance saving, report totals, CSV export, the schema) and real delivery through Brevo.
 
 ## Roles
 - Admin: everything, including classes, students, users, courses & sections, parents, marks, and messages.
@@ -67,7 +64,7 @@ Not covered: anything that needs PostgreSQL (attendance saving, report totals, C
 ## New features added
 - Courses & sections: admin creates courses (code + name) and sections; students are registered to a course+section from the student edit page.
 - Marks: admin triggers mark calculation on the Marks page. Marks are auto-derived from attendance percentage up to a chosen date (marks = attendance %). Each student's latest marks show on their student page and in the student dashboard.
-- Parents & messages: admin sets a parent/guardian name, email and phone per student. Admin can send individual messages and use "Notify parents" to automatically message every parent whose student's latest marks are below the LOW_ATTENDANCE threshold. Messages are stored in the messages table with status pending/sent/failed and delivered by the worker over e-mail and SMS; the parents page shows how many are pending or failed per student.
+- Parents & messages: admin sets a parent/guardian name, email and phone per student. Admin can send individual messages and use "Notify parents" to automatically message every parent whose student's latest marks are below the LOW_ATTENDANCE threshold. Messages are stored in the messages table with status pending/sent/failed and delivered by the worker over e-mail; the parents page shows how many are pending or failed per student.
 - Student login: separate `/student/login` page and student dashboard. Students log in with their own email/password (role = 'student').
 
 ## Student self-registration

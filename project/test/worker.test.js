@@ -43,27 +43,19 @@ function startStub(initialMode = 'ok') {
   });
 }
 
-test('channel targets and SMS text', () => {
-  assert.deepEqual(worker.targetsFor('email'), ['email']);
-  assert.deepEqual(worker.targetsFor('sms'), ['sms']);
-  assert.deepEqual(worker.targetsFor('both'), ['email', 'sms']);
-
-  assert.equal(worker.smsText({ subject: 'Attendance', body: 'Please attend.' }),
-    'Attendance\n\nPlease attend.');
-  const long = worker.smsText({ subject: 'S', body: 'x'.repeat(2000) });
-  assert.ok(long.length <= 640, 'SMS text must stay within the cap');
-  assert.ok(long.endsWith('...'));
+test('channel targets', () => {
+  assert.deepEqual(worker.targetsFor(), ['email']);
 });
 
 test('claim selects pending rows by channel with SKIP LOCKED', async () => {
   queries.length = 0;
-  await worker.claim(['email', 'both']);
+  await worker.claim(['email']);
   const q = queries.at(-1);
   assert.match(q.text, /FOR UPDATE SKIP LOCKED/);
   assert.match(q.text, /channel = ANY\(\$3::text\[\]\)/);
   assert.match(q.text, /next_attempt_at IS NULL OR next_attempt_at <= now\(\)/,
     'rows waiting for their backoff must not be claimed');
-  assert.deepEqual(q.params, [worker.MAX_ATTEMPTS, Number(process.env.MAIL_BATCH || 20), ['email', 'both']]);
+  assert.deepEqual(q.params, [worker.MAX_ATTEMPTS, Number(process.env.MAIL_BATCH || 20), ['email']]);
 });
 
 test('backoff doubles per attempt and is capped', () => {
@@ -78,59 +70,49 @@ test('backoff doubles per attempt and is capped', () => {
 test('sending only happens on channels that were requested', async (t) => {
   const stub = await startStub();
   t.after(() => stub.close());
-  process.env.RESEND_API_URL = stub.url + '/emails';
-  process.env.RESEND_API_KEY = 'k';
+  process.env.BREVO_API_URL = stub.url + '/v3/smtp/email';
+  process.env.BREVO_API_KEY = 'k';
   process.env.MAIL_FROM = 'A <a@b.c>';
-  process.env.TWILIO_API_URL = stub.url + '/Messages.json';
-  process.env.TWILIO_ACCOUNT_SID = 'AC';
-  process.env.TWILIO_AUTH_TOKEN = 't';
-  process.env.TWILIO_FROM = '+12025550123';
 
   const row = {
-    id: 1, channel: 'both', subject: 'Attendance', body: 'Please attend.',
-    parent_email: 'p@example.com', parent_phone: '+919876543210',
-    email_sent_at: null, sms_sent_at: null,
+    id: 1, channel: 'email', subject: 'Attendance', body: 'Please attend.',
+    parent_email: 'p@example.com',
+    email_sent_at: null,
   };
 
   queries.length = 0;
   stub.requests.length = 0;
-  const both = await worker.deliver(row);
-  assert.equal(both.ok, true);
-  assert.deepEqual(both.delivered, ['email', 'sms']);
-  assert.equal(stub.requests.length, 2);
+  const out = await worker.deliver(row);
+  assert.equal(out.ok, true);
+  assert.deepEqual(out.delivered, ['email']);
+  assert.equal(stub.requests.length, 1);
   const stamps = queries.map((q) => q.text).join('\n');
   assert.match(stamps, /SET email_sent_at = now\(\)/);
-  assert.match(stamps, /SET sms_sent_at = now\(\)/);
 
   // A retry must not re-send the channel that is already confirmed.
   stub.requests.length = 0;
   const retry = await worker.deliver({ ...row, email_sent_at: new Date() });
   assert.equal(retry.ok, true);
-  assert.deepEqual(retry.delivered, ['email', 'sms']);
-  assert.equal(stub.requests.length, 1, 'only SMS should be sent again');
+  assert.deepEqual(retry.delivered, ['email']);
+  assert.equal(stub.requests.length, 0, 'no e-mail should be sent again');
 });
 
-test('a partial permanent failure keeps what was delivered and names the failure', async (t) => {
-  // One provider accepts, the other rejects the number.
-  const mailStub = await startStub('ok');
-  const smsStub = await startStub('badnumber');
-  t.after(() => { mailStub.close(); smsStub.close(); });
-  process.env.RESEND_API_URL = mailStub.url + '/emails';
-  process.env.TWILIO_API_URL = smsStub.url + '/Messages.json';
+test('a permanent e-mail failure marks the message failed', async (t) => {
+  const stub = await startStub('badnumber');
+  t.after(() => stub.close());
+  process.env.BREVO_API_URL = stub.url + '/v3/smtp/email';
 
   const row = {
-    id: 2, channel: 'both', subject: 'S', body: 'B',
-    parent_email: 'p@example.com', parent_phone: '+919876543210',
-    email_sent_at: null, sms_sent_at: null,
+    id: 2, channel: 'email', subject: 'S', body: 'B',
+    parent_email: 'p@example.com',
+    email_sent_at: null,
   };
 
   const out = await worker.deliver(row);
   assert.equal(out.ok, false);
-  assert.equal(out.permanent, true, 'a rejected number is permanent');
-  assert.deepEqual(out.delivered, ['email']);
-  assert.match(out.error, /sms: .*21211/);
-  assert.equal(mailStub.requests.length, 1);
-  assert.equal(smsStub.requests.length, 1);
+  assert.equal(out.permanent, true);
+  assert.deepEqual(out.delivered, []);
+  assert.equal(stub.requests.length, 1);
 });
 
 test('record marks sent only on success and fails only when retrying is hopeless', async () => {
@@ -153,11 +135,11 @@ test('record marks sent only on success and fails only when retrying is hopeless
   assert.ok(delay >= worker.backoffMs(2) - 1000 && delay <= worker.backoffMs(2) + 1000,
     `expected about ${worker.backoffMs(2)} ms, got ${delay}`);
 
-  assert.equal(await worker.record(row(1), { ok: false, permanent: true, delivered: ['email'], error: 'sms: bad' }), 'failed');
+  assert.equal(await worker.record(row(1), { ok: false, permanent: true, delivered: ['email'], error: 'bad' }), 'failed');
   q = queries.at(-1);
   assert.match(q.text, /SET status = 'failed'/);
   assert.match(q.text, /next_attempt_at = NULL/);
-  assert.match(q.params[1], /^Delivered: email\. sms: bad$/);
+  assert.match(q.params[1], /^Delivered: email\. bad$/);
 
   assert.equal(await worker.record(row(worker.MAX_ATTEMPTS), { ok: false, permanent: false, delivered: [], error: 'x' }), 'failed',
     'attempt limit must end with failed');

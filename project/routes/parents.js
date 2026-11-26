@@ -3,20 +3,12 @@ const pool = require('../db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { toId, notFound, clean } = require('../lib/util');
 const mail = require('../lib/email');
-const sms = require('../lib/sms');
 
-const CHANNELS = new Set(['email', 'sms', 'both']);
-// A message can only be delivered when every channel it asks for is configured.
-const channelReady = (channel) => (channel === 'both'
-  ? mail.isConfigured() && sms.isConfigured()
-  : channel === 'sms' ? sms.isConfigured() : mail.isConfigured());
-// The channel this deployment can actually deliver: both when both providers
-// are configured, otherwise whichever one is, so queued work never sits
-// waiting for a provider that will not be added.
-const defaultChannel = () => {
-  if (mail.isConfigured() && sms.isConfigured()) return 'both';
-  return sms.isConfigured() ? 'sms' : 'email';
-};
+const CHANNELS = new Set(['email']);
+// A message can only be delivered when e-mail is configured.
+const channelReady = (channel) => channel === 'email' && mail.isConfigured();
+// The channel this deployment can actually deliver: e-mail when configured.
+const defaultChannel = () => mail.isConfigured() ? 'email' : null;
 
 // Only numeric ids match these routes, so /parents/notify falls through to its own handler.
 router.param('id', (req, res, next, v) => (/^\d{1,9}$/.test(v) ? next() : next('route')));
@@ -41,7 +33,7 @@ router.get('/', requireAuth, async (req, res) => {
   res.render('parents', {
     title: 'Parents & messages', active: 'parents',
     classes: classes.rows, rows: rows.rows, classId,
-    providers: { email: mail.isConfigured(), sms: sms.isConfigured() },
+    providers: { email: mail.isConfigured() },
   });
 });
 
@@ -76,7 +68,7 @@ router.get('/:id/edit', requireAdmin, async (req, res) => {
   res.render('parent-form', {
     title: 'Parent / guardian', active: 'parents',
     student: st.rows[0], parent: p.rows[0] || { id: null, name: '', email: '', phone: '' },
-    providers: { email: mail.isConfigured(), sms: sms.isConfigured() },
+    providers: { email: mail.isConfigured() },
     error: null,
   });
 });
@@ -94,7 +86,7 @@ router.post('/:id', requireAdmin, async (req, res) => {
     return res.status(400).render('parent-form', {
       title: 'Parent / guardian', active: 'parents',
       student: st.rows[0], parent: { id: null, name: '', email: '', phone: '' },
-      providers: { email: mail.isConfigured(), sms: sms.isConfigured() },
+      providers: { email: mail.isConfigured() },
       error: 'Parent name is required.',
     });
   }
@@ -110,7 +102,7 @@ router.post('/:id', requireAdmin, async (req, res) => {
       return res.status(400).render('parent-form', {
         title: 'Parent / guardian', active: 'parents',
         student: st.rows[0], parent: { id: null, name, email, phone },
-        providers: { email: mail.isConfigured(), sms: sms.isConfigured() },
+        providers: { email: mail.isConfigured() },
         error: 'The student record no longer exists.',
       });
     }
@@ -140,8 +132,7 @@ router.post('/:id/message', requireAdmin, async (req, res) => {
 
   const subject = clean(req.body.subject, 120);
   const body = clean(req.body.body, 2000);
-  const requested = String(req.body.channel || '');
-  const channel = channelReady(requested) ? requested : defaultChannel();
+  const channel = defaultChannel();
 
   // Stored as pending; the worker is the only thing that may mark it sent.
   await pool.query(
@@ -150,8 +141,8 @@ router.post('/:id/message', requireAdmin, async (req, res) => {
     [id, parent.rows[0].id, subject, body, channel]);
 
   req.flash('ok', channelReady(channel)
-    ? `Message queued for ${channel === 'both' ? 'e-mail and SMS' : channel}. The delivery worker will send it and record the result.`
-    : `Message saved as pending. The ${channel === 'both' ? 'e-mail or SMS' : channel} provider is not configured, so nothing has been delivered.`);
+    ? 'Message queued for e-mail. The delivery worker will send it and record the result.'
+    : 'Message saved as pending. The e-mail provider is not configured, so nothing has been delivered.');
   res.redirect('/parents');
 });
 
@@ -187,10 +178,9 @@ router.post('/notify', requireAdmin, async (req, res) => {
   }
 
   req.flash('ok', queued > 0
-    ? `${queued} notification${queued > 1 ? 's' : ''} queued for ` +
-      `${channel === 'both' ? 'e-mail and SMS' : channel}. ` + (channelReady(channel)
+    ? `${queued} notification${queued > 1 ? 's' : ''} queued for e-mail. ` + (channelReady(channel)
       ? 'The delivery worker will send them and record the result.'
-      : 'The provider is not configured, so they stay pending.')
+      : 'The e-mail provider is not configured, so they stay pending.')
     : 'No parents needed notification.');
   res.redirect('/parents');
 });
