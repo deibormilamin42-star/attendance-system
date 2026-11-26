@@ -4,12 +4,15 @@ const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { toId, notFound, clean } = require('../lib/util');
 const dates = require('../lib/dates');
 const mail = require('../lib/email');
-
+ 
+// Show the cause in the Render logs the moment the server starts.
 if (mail.isConfigured()) console.log('[mail] E-mail delivery is configured.');
 else console.warn(`[mail] E-mail delivery is OFF. Missing: ${mail.missingConfig()}`);
-
-// Send immediately and record the result. A logging failure must not undo a
-// delivery that the provider already accepted.
+ 
+// Only numeric ids match these routes, so /parents/notify falls through to its own handler.
+router.param('id', (req, res, next, v) => (/^\d{1,9}$/.test(v) ? next() : next('route')));
+ 
+// Send right now (no queue, no worker) and record the outcome as 'sent' or 'failed'.
 async function sendNow({ studentId, parentId, to, subject, body }) {
   let ok = false;
   let error = '';
@@ -29,14 +32,12 @@ async function sendNow({ studentId, parentId, to, subject, body }) {
       [studentId, parentId, subject, body, ok ? 'sent' : 'failed',
         ok ? null : error.slice(0, 500), ok ? dates.today() : null]);
   } catch (e) {
+    // The e-mail already went out; do not report it as failed because logging failed.
     console.error('[mail] could not record message:', e.message);
   }
   return { ok, error };
 }
-
-// Only numeric ids match these routes, so /parents/notify falls through to its own handler.
-router.param('id', (req, res, next, v) => (/^\d{1,9}$/.test(v) ? next() : next('route')));
-
+ 
 // List students with parent info + message log
 router.get('/', requireAuth, async (req, res) => {
   const classId = toId(req.query.class_id);
@@ -60,8 +61,8 @@ router.get('/', requireAuth, async (req, res) => {
     providers: { email: mail.isConfigured() },
   });
 });
-
-// Message log: what the worker delivered, what is still queued, what failed and why
+ 
+// Message log: what was sent and what failed (with the provider's reason)
 router.get('/messages', requireAdmin, async (req, res) => {
   const requested = String(req.query.status || 'failed');
   const status = ['failed', 'pending', 'sent', 'all'].includes(requested) ? requested : 'failed';
@@ -82,7 +83,7 @@ router.get('/messages', requireAdmin, async (req, res) => {
     title: 'Message log', active: 'parents', rows: rows.rows, status,
   });
 });
-
+ 
 // Edit / add parent for a student
 router.get('/:id/edit', requireAdmin, async (req, res) => {
   const id = req.params.id;
@@ -96,16 +97,16 @@ router.get('/:id/edit', requireAdmin, async (req, res) => {
     error: null,
   });
 });
-
+ 
 router.post('/:id', requireAdmin, async (req, res) => {
   const id = req.params.id;
   const st = await pool.query('SELECT id, roll_no, name FROM students WHERE id = $1', [id]);
   if (!st.rows[0]) return notFound(res, 'student');
-
+ 
   const name = clean(req.body.name, 80);
   const email = clean(req.body.email, 120);
   const phone = clean(req.body.phone, 30);
-
+ 
   if (!name) {
     return res.status(400).render('parent-form', {
       title: 'Parent / guardian', active: 'parents',
@@ -114,7 +115,7 @@ router.post('/:id', requireAdmin, async (req, res) => {
       error: 'Parent name is required.',
     });
   }
-
+ 
   try {
     await pool.query(
       `INSERT INTO parents (student_id, name, email, phone)
@@ -132,28 +133,28 @@ router.post('/:id', requireAdmin, async (req, res) => {
     }
     throw e;
   }
-
+ 
   req.flash('ok', 'Parent / guardian saved.');
   res.redirect('/parents');
 });
-
+ 
 // Send a message to a parent, immediately
 router.post('/:id/message', requireAdmin, async (req, res) => {
   const id = req.params.id;
   const st = await pool.query('SELECT id, roll_no, name FROM students WHERE id = $1', [id]);
   if (!st.rows[0]) return notFound(res, 'student');
-
+ 
   if (!req.body.subject || !req.body.body) {
     req.flash('bad', 'Subject and message are required.');
     return res.redirect('/parents');
   }
-
+ 
   const parent = await pool.query('SELECT id, email FROM parents WHERE student_id = $1', [id]);
   if (!parent.rows[0]) {
     req.flash('bad', 'No parent / guardian registered for this student.');
     return res.redirect('/parents');
   }
-
+ 
   const result = await sendNow({
     studentId: id,
     parentId: parent.rows[0].id,
@@ -161,16 +162,16 @@ router.post('/:id/message', requireAdmin, async (req, res) => {
     subject: clean(req.body.subject, 120),
     body: clean(req.body.body, 2000),
   });
-
+ 
   if (result.ok) req.flash('ok', 'Message sent.');
   else req.flash('bad', `Message failed: ${result.error}`);
   res.redirect('/parents');
 });
-
+ 
 // Mass notify: e-mail every parent whose child's latest marks are below the threshold
 router.post('/notify', requireAdmin, async (req, res) => {
   const lowThreshold = Number(process.env.LOW_ATTENDANCE || 75);
-
+ 
   // attendance_pct and marks must be selected here, or the message text says "undefined%".
   const { rows } = await pool.query(
     `SELECT s.id AS student_id, s.roll_no, s.name, c.name AS class_name,
@@ -185,25 +186,26 @@ router.post('/notify', requireAdmin, async (req, res) => {
      ) AND (m.attendance_pct < $1 OR m.marks < $1)
        AND p.email IS NOT NULL
      ORDER BY s.roll_no`, [lowThreshold]);
-
+ 
   let sent = 0;
   let failed = 0;
   let firstError = '';
   for (const r of rows) {
     const subject = `Attendance alert: ${r.roll_no} ${r.name}`;
-    const body = `Dear ${r.parent_name},\n\nThis is to inform you that ${r.name} (Roll ${r.roll_no}${r.class_name ? ', ' + r.class_name : ''}) currently has an attendance percentage of ${r.attendance_pct}% and marks of ${r.marks}%. At least one is below the required ${lowThreshold}% threshold.\n\nPlease ensure regular attendance and academic progress.\n\nRegards,\nSchool Administration`;
-
+    const body = `Dear ${r.parent_name},\n\nThis is to inform you that ${r.name} (Roll ${r.roll_no}${r.class_name ? ', ' + r.class_name : ''}) currently has an attendance percentage of ${r.attendance_pct}% which is below the required ${lowThreshold}% threshold.\n\nPlease ensure regular attendance.\n\nRegards,\nSchool Administration`;
+ 
     const result = await sendNow({
       studentId: r.student_id, parentId: r.parent_id, to: r.email, subject, body,
     });
     if (result.ok) sent++;
     else { failed++; firstError = firstError || result.error; }
   }
-
+ 
   if (!rows.length) req.flash('ok', 'No parents needed notification.');
   else if (failed) req.flash('bad', `${sent} sent, ${failed} failed. First error: ${firstError}`);
   else req.flash('ok', `${sent} notification${sent > 1 ? 's' : ''} sent.`);
   res.redirect('/parents');
 });
-
+ 
 module.exports = router;
+ 
