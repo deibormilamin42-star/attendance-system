@@ -52,9 +52,9 @@
           </tbody>
         </table>
       </div>
-      <p class="muted small">Use "Notify parents" to automatically queue alerts to parents of students whose attendance is below the threshold. Queued messages are delivered by the background worker (<code>npm run worker</code>), which sends each channel and marks the message sent or failed.</p>
+      <p class="muted small">Use "Notify parents" to immediately e-mail alerts to parents of students whose attendance or marks are below the threshold. Each attempt is recorded in the message log.</p>
       <% if (!providers.email) { %>
-        <p class="muted small">E-mail not configured yet. Set BREVO_API_KEY and MAIL_FROM to deliver messages; queued messages stay pending until then.</p>
+        <p class="muted small">E-mail is not configured. Set BREVO_API_KEY and MAIL_FROM before sending notifications.</p>
       <% } %>
     <% } %>
   </section>

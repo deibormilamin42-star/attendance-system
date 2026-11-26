@@ -62,7 +62,7 @@
           </tbody>
         </table>
       </div>
-      <p class="muted small">Newest first, up to 200 rows. “Tries” is how many times the worker has attempted delivery. Pending rows show when the next retry is due; failed rows have stopped retrying (a permanent provider error or the attempt limit).</p>
+      <p class="muted small">Newest first, up to 200 rows. “Tries” is how many times delivery was attempted. Messages sent from the parent pages are attempted immediately; failures are recorded. Pending rows are queued for the worker and show when the next retry is due.</p>
     <% } %>
   </section>
 </main>

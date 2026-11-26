@@ -15,9 +15,9 @@
 
   <section class="card" style="margin-top:1rem">
     <h2>Send a message</h2>
-    <p class="muted small">The message is saved as <b>pending</b> and delivered by the background worker over e-mail.</p>
+    <p class="muted small">The message is sent immediately by e-mail, and the delivery result is added to the message log.</p>
     <% if (!providers.email) { %>
-      <p class="muted small">Not configured yet: e-mail. Messages stay pending until BREVO_API_KEY and MAIL_FROM are set.</p>
+      <p class="muted small">E-mail is not configured. Attempts will fail until BREVO_API_KEY and MAIL_FROM are set.</p>
     <% } %>
     <form class="form" method="POST" action="/parents/<%= student.id %>/message">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">

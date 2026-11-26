@@ -45,14 +45,17 @@ test('e-mail adapter', async (t) => {
   t.after(() => stub.close());
 
   await t.test('refuses to send when no provider is configured', async () => {
+    delete process.env.BREVO_API_KEY;
+    delete process.env.MAIL_FROM;
     assert.equal(email.isConfigured(), false);
+    assert.equal(email.missingConfig(), 'BREVO_API_KEY and MAIL_FROM');
     await assert.rejects(() => email.sendEmail({ to: 'p@example.com', subject: 's', text: 'b' }),
       /No e-mail provider is configured/);
   });
 
   process.env.BREVO_API_URL = stub.url + '/v3/smtp/email';
-  process.env.BREVO_API_KEY = 'brevo_test_key';
-  process.env.MAIL_FROM = 'Attendly <alerts@example.com>';
+  process.env.BREVO_API_KEY = ' "brevo_test_key" ';
+  process.env.MAIL_FROM = ' "Attendly" <alerts@example.com> ';
 
   await t.test('sends the expected Brevo payload and returns the provider id', async () => {
     const out = await email.sendEmail({ to: 'p@example.com', subject: 'Attendance', text: 'Please attend.' });
@@ -60,6 +63,7 @@ test('e-mail adapter', async (t) => {
     const req = stub.requests.at(-1);
     assert.equal(req.headers['api-key'], 'brevo_test_key');
     assert.equal(req.headers['content-type'], 'application/json');
+    assert.equal(req.headers.accept, 'application/json');
     const payload = JSON.parse(req.body);
     assert.deepEqual(payload.sender, { email: 'alerts@example.com', name: 'Attendly' });
     assert.deepEqual(payload.to, [{ email: 'p@example.com' }]);
@@ -90,6 +94,11 @@ test('e-mail adapter', async (t) => {
   await t.test('fails permanently when the parent has no address', async () => {
     await assert.rejects(() => email.sendEmail({ to: '', subject: 's', text: 'b' }),
       (e) => e.permanent === true && /no e-mail address/.test(e.message));
+  });
+
+  await t.test('fails permanently when the parent address is invalid', async () => {
+    await assert.rejects(() => email.sendEmail({ to: 'not-an-email', subject: 's', text: 'b' }),
+      (e) => e.permanent === true && /not a valid e-mail address/.test(e.message));
   });
 
   await t.test('fails permanently when MAIL_FROM is not a valid address', async () => {
