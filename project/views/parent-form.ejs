@@ -25,9 +25,9 @@
       <label>Message<textarea name="body" maxlength="2000" rows="6" required></textarea></label>
       <label>Channel
         <select name="channel">
-          <option value="email">Email</option>
-          <option value="sms">SMS</option>
-          <option value="both">Both</option>
+          <% if (providers.email || !providers.sms) { %><option value="email">E-mail</option><% } %>
+          <% if (providers.sms) { %><option value="sms">SMS</option><% } %>
+          <% if (providers.email && providers.sms) { %><option value="both">E-mail and SMS</option><% } %>
         </select>
       </label>
       <div class="form-actions"><button class="btn" type="submit">Send message</button></div>

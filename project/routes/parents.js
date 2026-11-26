@@ -10,6 +10,13 @@ const CHANNELS = new Set(['email', 'sms', 'both']);
 const channelReady = (channel) => (channel === 'both'
   ? mail.isConfigured() && sms.isConfigured()
   : channel === 'sms' ? sms.isConfigured() : mail.isConfigured());
+// The channel this deployment can actually deliver: both when both providers
+// are configured, otherwise whichever one is, so queued work never sits
+// waiting for a provider that will not be added.
+const defaultChannel = () => {
+  if (mail.isConfigured() && sms.isConfigured()) return 'both';
+  return sms.isConfigured() ? 'sms' : 'email';
+};
 
 // Only numeric ids match these routes, so /parents/notify falls through to its own handler.
 router.param('id', (req, res, next, v) => (/^\d{1,9}$/.test(v) ? next() : next('route')));
@@ -133,8 +140,8 @@ router.post('/:id/message', requireAdmin, async (req, res) => {
 
   const subject = clean(req.body.subject, 120);
   const body = clean(req.body.body, 2000);
-  const requested = String(req.body.channel || 'email');
-  const channel = CHANNELS.has(requested) ? requested : 'email';
+  const requested = String(req.body.channel || '');
+  const channel = channelReady(requested) ? requested : defaultChannel();
 
   // Stored as pending; the worker is the only thing that may mark it sent.
   await pool.query(
@@ -166,6 +173,7 @@ router.post('/notify', requireAdmin, async (req, res) => {
        AND (p.email IS NOT NULL OR p.phone IS NOT NULL)
      ORDER BY s.roll_no`, [lowThreshold]);
 
+  const channel = defaultChannel();
   let queued = 0;
   for (const r of rows) {
     const subject = `Attendance alert: ${r.roll_no} ${r.name}`;
@@ -173,15 +181,16 @@ router.post('/notify', requireAdmin, async (req, res) => {
     // Stored as pending; the worker delivers and records the outcome.
     await pool.query(
       `INSERT INTO messages (student_id, parent_id, subject, body, channel, status)
-       VALUES ($1, $2, $3, $4, 'both', 'pending')`,
-      [r.student_id, r.parent_id, subject, body]);
+       VALUES ($1, $2, $3, $4, $5, 'pending')`,
+      [r.student_id, r.parent_id, subject, body, channel]);
     queued++;
   }
 
   req.flash('ok', queued > 0
-    ? `${queued} notification${queued > 1 ? 's' : ''} queued. ` + (channelReady('both')
+    ? `${queued} notification${queued > 1 ? 's' : ''} queued for ` +
+      `${channel === 'both' ? 'e-mail and SMS' : channel}. ` + (channelReady(channel)
       ? 'The delivery worker will send them and record the result.'
-      : 'Bulk alerts use e-mail and SMS, and one of those providers is not configured, so they stay pending.')
+      : 'The provider is not configured, so they stay pending.')
     : 'No parents needed notification.');
   res.redirect('/parents');
 });
