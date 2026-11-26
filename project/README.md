@@ -30,16 +30,15 @@ Node.js + Express + EJS, PostgreSQL on Neon, hosted on Render.
 5. Start the message worker in a second process (`npm run worker`) or as a Render background worker with the same environment variables. On Render, `npm run worker:once` also works as a cron job.
 
 ## Messages / parent notifications
-"Send message" and "Notify parents" only queue work: they write rows to the messages table with status "pending" and `sent_on` NULL. Delivery happens in `worker/send-messages.js`, which is the only code that writes "sent" or "failed".
+"Send message" and "Notify parents" send e-mail immediately via Brevo when the form is submitted, and record the result (sent/failed) right away. No separate background worker is required.
 
-Run the worker next to the web process:
-
-    npm run worker          # long-running, one pass per minute
-    npm run worker:once     # a single pass, for cron or a manual check
-
-Each pass claims up to `MAIL_BATCH` pending messages that are due (`next_attempt_at` is null or in the past) with `FOR UPDATE SKIP LOCKED`, so two workers never send the same row, and increments `attempts`. A message becomes "sent" only when the provider accepts it; `sent_on` is then set from `dates.today()` (APP_TZ). A permanent provider error, or `MAIL_MAX_ATTEMPTS` exhausted, sets "failed" and stores the reason in `last_error`.
+Delivery happens in `worker/send-messages.js` (the `deliver` and `record` functions), called directly from the route handler. A message becomes "sent" when Brevo accepts it; `sent_on` is then set from `dates.today()` (APP_TZ). A permanent provider error sets "failed" and stores the reason in `last_error`.
 
 Transient errors (timeouts, 429, 5xx) leave the message pending with an exponential backoff: the first retry is `MAIL_BACKOFF_BASE_MS` later, each further retry doubles that, capped at `MAIL_BACKOFF_MAX_MS`. With the defaults that is 1, 2, 4 and 8 minutes before the fifth failure marks the message failed. The wait is stored per message in `next_attempt_at`, so a restart does not reset it.
+
+To retry pending messages without a background worker, run:
+
+    npm run worker:once     # a single pass over pending messages
 
 Admins can see what happened on the **Message log** page (`/parents/messages`, linked from Parents & messages): filter by failed, pending, sent or all, with each student, channel, attempt count, per-channel delivery time, the next retry due, and the provider error for anything that failed.
 

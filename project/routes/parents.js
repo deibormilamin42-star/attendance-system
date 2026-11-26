@@ -3,6 +3,7 @@ const pool = require('../db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { toId, notFound, clean } = require('../lib/util');
 const mail = require('../lib/email');
+const { deliver, record } = require('../worker/send-messages');
 
 const CHANNELS = new Set(['email']);
 // A message can only be delivered when e-mail is configured.
@@ -134,15 +135,34 @@ router.post('/:id/message', requireAdmin, async (req, res) => {
   const body = clean(req.body.body, 2000);
   const channel = defaultChannel();
 
-  // Stored as pending; the worker is the only thing that may mark it sent.
-  await pool.query(
+  // Stored as pending; then we attempt delivery immediately so no background
+  // worker is required for e-mail to actually reach the parent.
+  const insert = await pool.query(
     `INSERT INTO messages (student_id, parent_id, subject, body, channel, status)
-     VALUES ($1, $2, $3, $4, $5, 'pending')`,
+     VALUES ($1, $2, $3, $4, $5, 'pending')
+     RETURNING id`,
     [id, parent.rows[0].id, subject, body, channel]);
+  const messageId = insert.rows[0].id;
 
-  req.flash('ok', channelReady(channel)
-    ? 'Message queued for e-mail. The delivery worker will send it and record the result.'
-    : 'Message saved as pending. The e-mail provider is not configured, so nothing has been delivered.');
+  const parentRow = await pool.query(
+    'SELECT email FROM parents WHERE id = $1', [parent.rows[0].id]);
+
+  const row = {
+    id: messageId,
+    channel,
+    subject,
+    body,
+    parent_email: parentRow.rows[0]?.email || null,
+    email_sent_at: null,
+    attempts: 0,
+  };
+
+  const delivery = await deliver(row);
+  await record(row, delivery);
+
+  req.flash('ok', delivery.ok
+    ? 'Message sent.'
+    : `Message failed: ${delivery.error}`);
   res.redirect('/parents');
 });
 
@@ -166,21 +186,37 @@ router.post('/notify', requireAdmin, async (req, res) => {
 
   const channel = defaultChannel();
   let queued = 0;
+  let sent = 0;
+  let failed = 0;
   for (const r of rows) {
     const subject = `Attendance alert: ${r.roll_no} ${r.name}`;
     const body = `Dear ${r.parent_name},\n\nThis is to inform you that ${r.name} (Roll ${r.roll_no}${r.class_name ? ', ' + r.class_name : ''}) currently has an attendance percentage of ${r.attendance_pct}% which is below the required ${lowThreshold}% threshold.\n\nPlease ensure regular attendance.\n\nRegards,\nSchool Administration`;
-    // Stored as pending; the worker delivers and records the outcome.
-    await pool.query(
+
+    const insert = await pool.query(
       `INSERT INTO messages (student_id, parent_id, subject, body, channel, status)
-       VALUES ($1, $2, $3, $4, $5, 'pending')`,
+       VALUES ($1, $2, $3, $4, $5, 'pending')
+       RETURNING id`,
       [r.student_id, r.parent_id, subject, body, channel]);
+    const messageId = insert.rows[0].id;
+
+    const row = {
+      id: messageId,
+      channel,
+      subject,
+      body,
+      parent_email: r.email || null,
+      email_sent_at: null,
+      attempts: 0,
+    };
+
+    const delivery = await deliver(row);
+    await record(row, delivery);
     queued++;
+    if (delivery.ok) sent++; else failed++;
   }
 
   req.flash('ok', queued > 0
-    ? `${queued} notification${queued > 1 ? 's' : ''} queued for e-mail. ` + (channelReady(channel)
-      ? 'The delivery worker will send them and record the result.'
-      : 'The e-mail provider is not configured, so they stay pending.')
+    ? `${queued} notification${queued > 1 ? 's' : ''} processed: ${sent} sent, ${failed} failed.`
     : 'No parents needed notification.');
   res.redirect('/parents');
 });
