@@ -1,0 +1,25 @@
+<%- include('partials/head') %>
+<main class="auth">
+  <form class="card login" method="POST" action="/student/register">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <button type="button" id="themeToggle" class="icon-btn" aria-label="Toggle light or dark theme"></button>
+    <div class="logo">&#10003;</div>
+    <h1>Create student account</h1>
+    <p class="muted">Sign up to access your dashboard</p>
+    <% if (error) { %><div class="alert bad" role="alert"><%= error %></div><% } %>
+    <label>Name<input type="text" name="name" required autocomplete="name"></label>
+    <label>Email<input type="email" name="email" required autocomplete="username" autofocus></label>
+    <label>Password<input type="password" name="password" required autocomplete="current-password" minlength="8"></label>
+    <label>Class
+      <select name="class_id" required>
+        <option value="">Select your class</option>
+        <% classes.forEach(function (c) { %><option value="<%= c.id %>"><%= c.name %></option><% }) %>
+      </select>
+    </label>
+    <label>Roll number<input type="text" name="roll_no" required autocomplete="roll-number"></label>
+    <label>Registration code<input type="text" name="code" required autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXXX-XXXXX"></label>
+    <p class="muted small">Ask the administrator for a registration code. A roll number on its own is not enough to create an account.</p>
+    <button class="btn lg" type="submit">Register</button>
+  </form>
+</main>
+<%- include('partials/foot') %>

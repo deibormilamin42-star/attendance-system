@@ -1,0 +1,69 @@
+<%- include('partials/head') %>
+<main class="container">
+  <div class="page-head">
+    <h1>Message log</h1>
+    <a class="btn ghost" href="/parents">Back to parents</a>
+  </div>
+
+  <form class="card filters" method="GET" action="/parents/messages">
+    <label>Status
+      <select name="status">
+        <% ['failed', 'pending', 'sent', 'all'].forEach(function (s) { %>
+          <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s %></option>
+        <% }) %>
+      </select>
+    </label>
+    <button class="btn" type="submit">Show</button>
+  </form>
+
+  <section class="card">
+    <% if (!rows.length) { %>
+      <p class="muted">No messages with status “<%= status %>”.</p>
+    <% } else { %>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>Student</th><th>Parent / contact</th><th>Channel</th>
+              <th>Subject</th><th>Status</th><th class="num">Tries</th><th>Delivery</th><th>Error</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% rows.forEach(function (m) { %>
+              <tr>
+                <td class="num"><%= m.id %></td>
+                <td><%= m.roll_no %><br><span class="muted small"><%= m.student_name %></span></td>
+                <td>
+                  <%= m.parent_name || '—' %>
+                  <br><span class="muted small"><%= m.email || '' %></span>
+                  <% if (m.phone) { %><span class="muted small"><%= m.email ? ' · ' : '' %><%= m.phone %></span><% } %>
+                </td>
+                <td><%= m.channel %></td>
+                <td><%= m.subject %></td>
+                <td>
+                  <span class="chip <%= m.status === 'sent' ? 'present' : m.status === 'failed' ? 'absent' : 'late' %>"><%= m.status %></span>
+                </td>
+                <td class="num"><%= m.attempts %></td>
+                <td class="small">
+                  <% if (m.status === 'sent') { %>
+                    <%= m.sent_on || '' %><br>
+                    <span class="muted">e-mail <%= m.email_sent || '—' %> · SMS <%= m.sms_sent || '—' %></span>
+                  <% } else if (m.status === 'pending' && m.next_attempt) { %>
+                    <span class="muted">next retry<br><%= m.next_attempt %></span>
+                  <% } else if (m.status === 'pending') { %>
+                    <span class="muted">due now</span>
+                  <% } else { %>
+                    <span class="muted">not delivered</span>
+                  <% } %>
+                </td>
+                <td class="small" style="max-width:22rem;white-space:pre-wrap"><%= m.last_error || '' %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted small">Newest first, up to 200 rows. “Tries” is how many times the worker has attempted delivery. Pending rows show when the next retry is due; failed rows have stopped retrying (a permanent provider error or the attempt limit).</p>
+    <% } %>
+  </section>
+</main>
+<%- include('partials/foot') %>

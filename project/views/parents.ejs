@@ -1,0 +1,65 @@
+<%- include('partials/head') %>
+<main class="container">
+  <div class="page-head">
+    <h1>Parents & messages</h1>
+    <% if (user.role === 'admin') { %>
+      <form method="POST" action="/parents/notify" style="display:inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn">Notify parents (low attendance)</button>
+      </form>
+      <a class="btn ghost" href="/parents/messages">Message log</a>
+    <% } %>
+  </div>
+
+  <form class="card filters" method="GET" action="/parents">
+    <label>Class
+      <select name="class_id">
+        <option value="">All classes</option>
+        <% classes.forEach(function (c) { %><option value="<%= c.id %>" <%= classId === c.id ? 'selected' : '' %>><%= c.name %></option><% }) %>
+      </select>
+    </label>
+    <button class="btn" type="submit">Filter</button>
+  </form>
+
+  <section class="card">
+    <% if (!rows.length) { %>
+      <p class="muted">No students found.</p>
+    <% } else { %>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Roll</th><th>Student</th><th>Class</th><th>Parent / guardian</th><th>Contact</th><th class="actions">Actions</th></tr></thead>
+          <tbody>
+            <% rows.forEach(function (r) { %>
+              <tr>
+                <td><%= r.roll_no %></td>
+                <td><a href="/students/<%= r.id %>"><%= r.name %></a></td>
+                <td><%= r.class_name || '–' %></td>
+                <td><% if (r.parent_name) { %><%= r.parent_name %><% } else { %><span class="muted">Not set</span><% } %></td>
+                <td>
+                  <% if (r.email) { %><span class="chip"><%= r.email %></span><% } %>
+                  <% if (r.phone) { %><span class="chip late"><%= r.phone %></span><% } %>
+                  <% if (!r.email && !r.phone) { %><span class="muted">No contact</span><% } %>
+                </td>
+                <td class="actions">
+                  <% if (user.role === 'admin') { %>
+                    <a class="btn ghost sm" href="/parents/<%= r.id %>/edit">Edit parent &amp; send message</a>
+                    <% if (r.pending_count > 0) { %><span class="chip late"><%= r.pending_count %> pending</span><% } %>
+                    <% if (r.failed_count > 0) { %><span class="chip bad"><%= r.failed_count %> failed</span><% } %>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted small">Use "Notify parents" to automatically queue alerts to parents of students whose attendance is below the threshold. Queued messages are delivered by the background worker (<code>npm run worker</code>), which sends each channel and marks the message sent or failed.</p>
+      <% if (!providers.email || !providers.sms) { %>
+        <p class="muted small">Providers configured: <%= providers.email ? 'e-mail' : '' %><%= providers.email && providers.sms ? ' and ' : '' %><%= providers.sms ? 'SMS' : '' %>.
+          <% if (!providers.email) { %>Set RESEND_API_KEY and MAIL_FROM to deliver e-mail.<% } %>
+          <% if (!providers.sms) { %>Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM to deliver SMS.<% } %>
+          Messages that need a missing channel stay pending.</p>
+      <% } %>
+    <% } %>
+  </section>
+</main>
+<%- include('partials/foot') %>

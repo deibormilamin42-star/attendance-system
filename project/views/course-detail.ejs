@@ -1,0 +1,41 @@
+<%- include('partials/head') %>
+<main class="container">
+  <div class="page-head">
+    <div>
+      <h1><%= course.code %> - <%= course.name %></h1>
+      <p class="muted">Sections</p>
+    </div>
+    <% if (user.role === 'admin') { %>
+      <a class="btn" href="/courses">Back to courses</a>
+    <% } %>
+  </div>
+
+  <section class="card">
+    <% if (!sections.length) { %>
+      <p class="muted">No sections yet for this course.</p>
+    <% } else { %>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Section</th><th class="num">Students</th><th class="actions">Actions</th></tr></thead>
+          <tbody>
+            <% sections.forEach(function (s) { %>
+              <tr>
+                <td><strong><%= s.name %></strong></td>
+                <td class="num"><%= s.student_count %></td>
+                <td class="actions">
+                  <% if (user.role === 'admin') { %>
+                    <form method="POST" action="/courses/sections/<%= s.id %>/delete" data-confirm="Delete this section? Students registered here will lose their section assignment.">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <button class="btn danger sm" type="submit">Delete</button>
+                    </form>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+</main>
+<%- include('partials/foot') %>

@@ -1,0 +1,59 @@
+<%- include('partials/head') %>
+<main class="container">
+  <div class="page-head">
+    <div>
+      <h1>Hello, <%= student.name %></h1>
+      <p class="muted">Roll <%= student.roll_no %><%= student.class_name ? ' · ' + student.class_name : '' %></p>
+    </div>
+    <form method="POST" action="/student/logout">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button class="btn ghost sm" type="submit">Sign out</button>
+    </form>
+  </div>
+
+  <% if (student.course_name) { %>
+  <section class="card">
+    <h2>My registration</h2>
+    <div class="grid stats">
+      <div class="card stat ok"><span class="muted">Course</span><strong><%= student.course_name %></strong></div>
+      <div class="card stat"><span class="muted">Section</span><strong><%= student.section_name %></strong></div>
+    </div>
+  </section>
+  <% } %>
+
+  <% if (parent) { %>
+  <section class="card">
+    <h2>Parent / guardian on file</h2>
+    <p><strong><%= parent.name %></strong><br>
+    <% if (parent.email) { %>Email: <%= parent.email %><br><% } %>
+    <% if (parent.phone) { %>Phone: <%= parent.phone %><% } %>
+    </p>
+  </section>
+  <% } %>
+
+  <section class="grid stats">
+    <div class="card stat <%= pctClass(Number(marks?.attendance_pct)) %>"><span class="muted">Attendance</span><strong><%= marks ? marks.attendance_pct + '%' : '–' %></strong></div>
+    <div class="card stat <%= pctClass(Number(marks?.marks)) %>"><span class="muted">Marks</span><strong><%= marks ? marks.marks + '/100' : '–' %></strong></div>
+    <div class="card stat"><span class="muted">Days recorded</span><strong><%= attendance.total || 0 %></strong></div>
+  </section>
+
+  <section class="card">
+    <h2>Recent attendance</h2>
+    <% if (!attendance.total) { %>
+      <p class="muted">No attendance recorded yet.</p>
+    <% } else { %>
+      <p class="muted small">Attendance so far: <%= attendance.pct == null ? '–' : attendance.pct + '%' %> (<%= attendance.attended %> of <%= attendance.total %> days)</p>
+    <% } %>
+  </section>
+
+  <section class="card">
+    <h2>What you can see</h2>
+    <ul class="list">
+      <li>Your attendance percentage and marks (auto-calculated from attendance)</li>
+      <li>Your course and section registration</li>
+      <li>Parent / guardian contact on file</li>
+      <li>Teachers and admins can mark attendance and send messages to your parent</li>
+    </ul>
+  </section>
+</main>
+<%- include('partials/foot') %>
